@@ -25,7 +25,7 @@
 </div>
 
 <div id="loading-ui" style="display: none;">
-    <h2>⏳ Đang kết nối Firebase và ráp file Save State...</h2>
+    <h2>⏳ Đang tải và ráp dữ liệu Save State từ Firebase...</h2>
 </div>
 
 <div id="game"></div>
@@ -59,9 +59,7 @@
     });
 
     let emulatorStarted = false;
-
-    // TÊN BIẾN CHUẨN CỦA BẢN EMULATORJS STABLE
-    const targetKey = "emulatorjs-state-gba-https://raw.githubusercontent.com/tung55/pkmsource/main/pkmfrsq.gba";
+    window.cloudStateUrl = null; 
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -73,26 +71,32 @@
             if (!emulatorStarted) {
                 emulatorStarted = true;
                 try {
-                    // Lấy các mảnh từ Firebase về ráp lại thành 1 file state hoàn chỉnh
+                    // LẤY CÁC MẢNH TỪ FIREBASE VỀ RÁP LẠI
                     const metaSnap = await getDoc(doc(db, "savestates", user.uid));
                     if (metaSnap.exists()) {
                         const totalChunks = metaSnap.data().totalChunks;
                         let fullBase64 = '';
-                        console.log(`☁️ Phát hiện file trên mây. Đang tải ${totalChunks} mảnh...`);
+                        console.log(`☁️ Đang lấy ${totalChunks} mảnh Save State từ Firebase...`);
                         
                         for (let i = 0; i < totalChunks; i++) {
                             const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_chunk_${i}`));
                             if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
                         }
                         
-                        // Nạp dữ liệu vào localStorage để giả lập tự nhận khi mở lên
-                        localStorage.setItem(targetKey, fullBase64);
-                        console.log("✅ Đã đồng bộ thành công Save State từ Cloud vào trình duyệt!");
+                        // Chuyển chuỗi Base64 ráp được thành một file ảo để nạp vào giả lập
+                        const byteString = atob(fullBase64);
+                        const ab = new Uint8Array(byteString.length);
+                        for (let i = 0; i < byteString.length; i++) {
+                            ab[i] = byteString.charCodeAt(i);
+                        }
+                        const blob = new Blob([ab], { type: "application/octet-stream" });
+                        window.cloudStateUrl = URL.createObjectURL(blob);
+                        console.log("✅ Đã ráp xong file Save State sẵn sàng nạp vào game!");
                     } else {
-                        console.log("☁️ Chưa có dữ liệu Save State nào trên Cloud.");
+                        console.log("☁️ Tài khoản mới, chưa có dữ liệu trên mây.");
                     }
                 } catch (e) { 
-                    console.error("Lỗi tải từ Firebase:", e); 
+                    console.error("Lỗi đồng bộ mây:", e); 
                 } finally {
                     document.getElementById("loading-ui").style.display = "none";
                     startEmulator();
@@ -104,41 +108,38 @@
         }
     });
 
-    // Hàm chạy ngầm bắt quả tang khi bạn bấm Save State thành công
-    window.activateCloudWatcher = () => {
-        let lastValue = localStorage.getItem(targetKey);
-
-        setInterval(async () => {
-            if (!auth.currentUser) return;
-            let currentValue = localStorage.getItem(targetKey);
-            
-            // Nếu phát hiện biến thay đổi (nghĩa là bạn vừa bấm Save State thành công)
-            if (currentValue && currentValue !== lastValue) {
-                lastValue = currentValue;
-                console.log("⚡ Phát hiện Save State cục bộ mới! Đang băm nhỏ đưa lên Firebase...");
-                
-                try {
-                    const chunkSize = 800000; // 800KB một mảnh để né lỗi 1MB của Firebase
-                    const totalChunks = Math.ceil(currentValue.length / chunkSize);
-
-                    // Ghi đè số lượng mảnh mới
-                    await setDoc(doc(db, "savestates", auth.currentUser.uid), { 
-                        totalChunks: totalChunks, 
-                        time: Date.now() 
-                    });
-
-                    // Đẩy từng mảnh lên Firestore
-                    for (let i = 0; i < totalChunks; i++) {
-                        const chunkData = currentValue.substring(i * chunkSize, (i + 1) * chunkSize);
-                        await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_chunk_${i}`), { data: chunkData });
-                        console.log(`⬆️ Đã upload mảnh ${i + 1}/${totalChunks}`);
-                    }
-                    console.log("🎉 FIREBASE ĐÃ LƯU TRỮ THÀNH CÔNG VÀ AN TOÀN!");
-                } catch (e) {
-                    console.error("❌ Firebase từ chối lưu:", e);
-                }
+    // HÀM BĂM NHỎ DỮ LIỆU ĐỂ NÉ GIỚI HẠN 1MB CỦA FIREBASE
+    window.uploadStateToCloud = async (stateData) => {
+        if (!auth.currentUser) return;
+        console.log("⚡ Đang băm nhỏ dữ liệu Save State để gửi lên Firebase...");
+        
+        try {
+            const bytes = new Uint8Array(stateData);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
             }
-        }, 1500);
+            const base64String = btoa(binary);
+
+            const chunkSize = 800000; // 800KB mỗi mảnh
+            const totalChunks = Math.ceil(base64String.length / chunkSize);
+
+            // Ghi nhận tổng số lượng mảnh
+            await setDoc(doc(db, "savestates", auth.currentUser.uid), { 
+                totalChunks: totalChunks, 
+                time: Date.now() 
+            });
+
+            // Đẩy từng mảnh lên Firestore Database
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkData = base64String.substring(i * chunkSize, (i + 1) * chunkSize);
+                await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_chunk_${i}`), { data: chunkData });
+                console.log(`⬆️ Đã tải lên thành công mảnh ${i + 1}/${totalChunks}`);
+            }
+            console.log("🎉 XONG! FIREBASE ĐÃ LƯU TRỮ TRỌN VẸN STATE CỦA BẠN!");
+        } catch (e) {
+            console.error("❌ Firebase từ chối lưu:", e);
+        }
     };
 </script>
 
@@ -150,11 +151,22 @@ function startEmulator() {
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
 
+    // Nếu trên mây đã có file save state cũ, ép giả lập tự động nhận diện đường dẫn link ẩn này
+    if (window.cloudStateUrl) {
+        window.EJS_stateUrl = window.cloudStateUrl;
+    }
+
+    // 🎯 HOOK CHÍNH CHỦ: Bắt trọn khoảnh khắc bạn bấm nút Save State trên menu giả lập
+    window.EJS_onSaveState = function(g) {
+        console.log("📸 Nhận được tín hiệu Save State từ giả lập!");
+        let rawData = (g && g.data) ? g.data : g;
+        if (rawData && window.uploadStateToCloud) {
+            window.uploadStateToCloud(rawData);
+        }
+    };
+
     const script = document.createElement('script');
     script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
-    script.onload = () => {
-        if(window.activateCloudWatcher) window.activateCloudWatcher();
-    };
     document.body.appendChild(script);
 }
 </script>
