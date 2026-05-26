@@ -157,7 +157,7 @@ function startEmulator() {
 
     // Nạp link Data URI vào cho giả lập nếu trên mây có dữ liệu
     if (window.cloudStateUrl) {
-        window.EJS_stateUrl = window.cloudStateUrl;
+        window.EJS_loadStateURL = window.cloudStateUrl; // SỬA TÊN BIẾN Ở ĐÂY LÀ XONG!
     }
 
     // Bắt sự kiện tạo file và rà soát kỹ định dạng mảng
