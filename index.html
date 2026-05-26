@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Pokemon Cloud Sync - Fixed Save State</title>
+    <style>
+        body { margin:0; background:black; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: sans-serif; height: 100vh; }
+        #user-profile { position: fixed; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; display: none; align-items: center; z-index: 100; }
+        #game { width:80%; height:70vh; max-width: 800px; margin-top: 50px; background: #111; } 
+        #login-ui, #loading-ui { text-align: center; }
+        button { padding: 15px 30px; cursor: pointer; background: #4285f4; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold;}
+        .logout-btn { background:#ff4444; margin-left:10px; padding:8px 12px; font-size:14px; border:none; border-radius:4px; color:white; cursor:pointer; }
+    </style>
+</head>
+<body>
+
+<div id="user-profile">
+    <span id="user-email"></span>
+    <button class="logout-btn" onclick="handleLogout()">Đăng xuất</button>
+</div>
+
+<div id="login-ui">
+    <h2>Pokemon - Save State Cloud</h2>
+    <button id="btn-login">Đăng nhập Google</button>
+</div>
+
+<div id="loading-ui" style="display: none;">
+    <h2>⏳ Đang đồng bộ dữ liệu mây, vui lòng đợi...</h2>
+</div>
+
+<div id="game"></div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        /* 💥 DÁN CẤU HÌNH FIREBASE FIRESTORE CỦA BẠN VÀO ĐÂY */
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth();
+    const provider = new GoogleAuthProvider();
+
+    window.handleLogout = () => {
+        signOut(auth).then(() => window.location.reload());
+    };
+
+    document.getElementById("btn-login").addEventListener("click", () => {
+        signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập: " + err.message));
+    });
+
+    let emulatorStarted = false;
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            document.getElementById("login-ui").style.display = "none";
+            document.getElementById("loading-ui").style.display = "block";
+            document.getElementById("user-profile").style.display = "flex";
+            document.getElementById("user-email").innerText = user.email;
+
+            if (!emulatorStarted) {
+                emulatorStarted = true;
+                try {
+                    // Tải dữ liệu băm từ mây về và nạp vào localStorage trước khi giả lập bật
+                    const metaSnap = await getDoc(doc(db, "savestates", user.uid));
+                    if (metaSnap.exists()) {
+                        const totalChunks = metaSnap.data().totalChunks;
+                        let fullBase64 = '';
+                        
+                        for (let i = 0; i < totalChunks; i++) {
+                            const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_chunk_${i}`));
+                            if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
+                        }
+                        
+                        // Trả lại file vào hệ thống cục bộ của trình duyệt để giả lập tự nhận diện
+                        const keyName = "ejs-1-gba-https://raw.githubusercontent.com/tung55/pkmsource/main/pkmfrsq.gba-state";
+                        localStorage.setItem(keyName, fullBase64);
+                        console.log("☁️ Đã nạp thành công Save State từ Cloud vào trình duyệt!");
+                    }
+                } catch (e) { 
+                    console.error("Lỗi đồng bộ mây:", e); 
+                } finally {
+                    document.getElementById("loading-ui").style.display = "none";
+                    startEmulator();
+                }
+            }
+        } else {
+            document.getElementById("login-ui").style.display = "block";
+            document.getElementById("user-profile").style.display = "none";
+        }
+    });
+
+    // Hàm chạy ngầm theo dõi: Khi bạn bấm Save State trên menu giả lập THÀNH CÔNG, hàm này sẽ kích hoạt
+    window.activateCloudWatcher = () => {
+        const targetKey = "ejs-1-gba-https://raw.githubusercontent.com/tung55/pkmsource/main/pkmfrsq.gba-state";
+        let lastValue = localStorage.getItem(targetKey);
+
+        setInterval(async () => {
+            if (!auth.currentUser) return;
+            let currentValue = localStorage.getItem(targetKey);
+            
+            // Nếu phát hiện giả lập vừa tạo ra hoặc cập nhật file Save State mới
+            if (currentValue && currentValue !== lastValue) {
+                lastValue = currentValue;
+                console.log("⏳ Phát hiện Save State thành công cục bộ! Đang băm nhỏ gửi lên mây...");
+                
+                try {
+                    const chunkSize = 800000; 
+                    const totalChunks = Math.ceil(currentValue.length / chunkSize);
+
+                    await setDoc(doc(db, "savestates", auth.currentUser.uid), { 
+                        totalChunks: totalChunks, 
+                        time: Date.now() 
+                    });
+
+                    for (let i = 0; i < totalChunks; i++) {
+                        const chunkData = currentValue.substring(i * chunkSize, (i + 1) * chunkSize);
+                        await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_chunk_${i}`), { data: chunkData });
+                    }
+                    console.log("✅ ĐỒNG BỘ CLOUD THÀNH CÔNG!");
+                } catch (e) {
+                    console.error("Lỗi đẩy dữ liệu băm:", e);
+                }
+            }
+        }, 1500); // Kiểm tra mỗi 1.5 giây
+    };
+</script>
+
+<script>
+function startEmulator() {
+    window.EJS_player = '#game';
+    window.EJS_core = 'gba';
+    window.EJS_gameUrl = 'https://raw.githubusercontent.com/tung55/pkmsource/main/pkmfrsq.gba';
+    
+    // ĐỔI SANG BẢN STABLE ĐỂ FIX LỖI GIẢ LẬP TỰ BÁO FAIL
+    window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_startOnLoaded = true;
+
+    const script = document.createElement('script');
+    script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
+    script.onload = () => {
+        // Kích hoạt bộ theo dõi ngầm sau khi giả lập tải xong
+        if(window.activateCloudWatcher) window.activateCloudWatcher();
+    };
+    document.body.appendChild(script);
+}
+</script>
+</body>
+</html>
