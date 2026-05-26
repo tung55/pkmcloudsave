@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pokemon Cloud Sync - Real Save State Cloud</title>
+    <title>Pokemon Cloud Sync - Data URI Edition</title>
     <style>
         body { margin:0; background:black; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: sans-serif; height: 100vh; }
         #user-profile { position: fixed; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; display: none; align-items: center; z-index: 100; }
@@ -25,7 +25,7 @@
 </div>
 
 <div id="loading-ui" style="display: none;">
-    <h2>⏳ Đang tải và ráp dữ liệu Save State từ Firebase...</h2>
+    <h2>⏳ Đang tải và giải mã dữ liệu Save State từ Firebase...</h2>
 </div>
 
 <div id="game"></div>
@@ -71,29 +71,20 @@
             if (!emulatorStarted) {
                 emulatorStarted = true;
                 try {
-                    // LẤY CÁC MẢNH TỪ FIREBASE VỀ RÁP LẠI
                     const metaSnap = await getDoc(doc(db, "savestates", user.uid));
                     if (metaSnap.exists()) {
                         const totalChunks = metaSnap.data().totalChunks;
                         let fullBase64 = '';
-                        console.log(`☁️ Đang lấy ${totalChunks} mảnh Save State từ Firebase...`);
+                        console.log(`☁️ Đang kéo ${totalChunks} mảnh Save State từ Firebase...`);
                         
                         for (let i = 0; i < totalChunks; i++) {
                             const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_chunk_${i}`));
                             if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
                         }
                         
-                        // Chuyển chuỗi Base64 ráp được thành một file ảo để nạp vào giả lập
-                        const byteString = atob(fullBase64);
-                        const ab = new Uint8Array(byteString.length);
-                        for (let i = 0; i < byteString.length; i++) {
-                            ab[i] = byteString.charCodeAt(i);
-                        }
-                        const blob = new Blob([ab], { type: "application/octet-stream" });
-                        window.cloudStateUrl = URL.createObjectURL(blob);
-                        console.log("✅ Đã ráp xong file Save State sẵn sàng nạp vào game!");
-                    } else {
-                        console.log("☁️ Tài khoản mới, chưa có dữ liệu trên mây.");
+                        // 💥 CẬP NHẬT MỚI: Ép trực tiếp thành Data URI để xuyên thủng rào cản Web Worker
+                        window.cloudStateUrl = "data:application/octet-stream;base64," + fullBase64;
+                        console.log("✅ Đã ráp xong file Save State (chuẩn Data URI) sẵn sàng nạp!");
                     }
                 } catch (e) { 
                     console.error("Lỗi đồng bộ mây:", e); 
@@ -108,35 +99,39 @@
         }
     });
 
-    // HÀM BĂM NHỎ DỮ LIỆU ĐỂ NÉ GIỚI HẠN 1MB CỦA FIREBASE
     window.uploadStateToCloud = async (stateData) => {
         if (!auth.currentUser) return;
-        console.log("⚡ Đang băm nhỏ dữ liệu Save State để gửi lên Firebase...");
         
         try {
+            // 💥 CẬP NHẬT MỚI: Trích xuất chính xác Uint8Array, tránh trường hợp lưu nhầm mảng rỗng
             const bytes = new Uint8Array(stateData);
+            if (bytes.byteLength < 100) {
+                console.error("❌ Lỗi: Dữ liệu quá nhỏ hoặc rỗng. Giả lập cung cấp file lỗi.");
+                return;
+            }
+            
+            console.log(`⚡ Đang băm nhỏ file Save State (${(bytes.byteLength / 1024 / 1024).toFixed(2)} MB)...`);
+            
             let binary = '';
             for (let i = 0; i < bytes.byteLength; i++) {
                 binary += String.fromCharCode(bytes[i]);
             }
             const base64String = btoa(binary);
 
-            const chunkSize = 800000; // 800KB mỗi mảnh
+            const chunkSize = 800000; 
             const totalChunks = Math.ceil(base64String.length / chunkSize);
 
-            // Ghi nhận tổng số lượng mảnh
             await setDoc(doc(db, "savestates", auth.currentUser.uid), { 
                 totalChunks: totalChunks, 
                 time: Date.now() 
             });
 
-            // Đẩy từng mảnh lên Firestore Database
             for (let i = 0; i < totalChunks; i++) {
                 const chunkData = base64String.substring(i * chunkSize, (i + 1) * chunkSize);
                 await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_chunk_${i}`), { data: chunkData });
-                console.log(`⬆️ Đã tải lên thành công mảnh ${i + 1}/${totalChunks}`);
+                console.log(`⬆️ Upload xong mảnh ${i + 1}/${totalChunks}`);
             }
-            console.log("🎉 XONG! FIREBASE ĐÃ LƯU TRỮ TRỌN VẸN STATE CỦA BẠN!");
+            console.log("🎉 FIREBASE ĐÃ LƯU TRỮ TRỌN VẸN STATE!");
         } catch (e) {
             console.error("❌ Firebase từ chối lưu:", e);
         }
@@ -151,15 +146,18 @@ function startEmulator() {
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
 
-    // Nếu trên mây đã có file save state cũ, ép giả lập tự động nhận diện đường dẫn link ẩn này
+    // Nếu có Cloud State, ép giả lập đọc từ Data URI
     if (window.cloudStateUrl) {
         window.EJS_stateUrl = window.cloudStateUrl;
     }
 
-    // 🎯 HOOK CHÍNH CHỦ: Bắt trọn khoảnh khắc bạn bấm nút Save State trên menu giả lập
-    window.EJS_onSaveState = function(g) {
-        console.log("📸 Nhận được tín hiệu Save State từ giả lập!");
-        let rawData = (g && g.data) ? g.data : g;
+    // 💥 CẬP NHẬT MỚI: Đảm bảo nhặt đúng cục dữ liệu dù giả lập trả về định dạng nào
+    window.EJS_onSaveState = function(data) {
+        console.log("📸 Bắt được tín hiệu Save State!");
+        let rawData = data;
+        if (data && data.state) rawData = data.state;
+        else if (data && data.data) rawData = data.data;
+
         if (rawData && window.uploadStateToCloud) {
             window.uploadStateToCloud(rawData);
         }
