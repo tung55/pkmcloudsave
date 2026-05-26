@@ -2,40 +2,72 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pokemon Cloud - Full Control</title>
+    <title>Pokemon Cloud - Ultimate Thumbnail Edition</title>
     <style>
-        body { margin:0; background:#0f0f0f; color: white; font-family: sans-serif; display:flex; flex-direction:column; align-items:center; min-height: 100vh; }
-        .screen { display: none; flex-direction: column; align-items: center; width: 100%; padding: 20px; }
+        body { margin:0; background:#0f0f0f; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
+        
+        #user-profile { position: fixed; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px 15px; border-radius: 8px; display: none; align-items: center; z-index: 100; backdrop-filter: blur(5px); }
+        .logout-btn { background:#ff4444; margin-left:15px; padding:6px 12px; font-size:14px; border:none; border-radius:4px; color:white; cursor:pointer; font-weight: bold; }
+        
+        .screen { display: none; text-align: center; flex-direction: column; align-items: center; width: 100%; }
         .active-screen { display: flex; }
         
-        #slot-list { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
-        .slot-card { background: #222; border: 2px solid #444; border-radius: 10px; padding: 15px; width: 200px; cursor: pointer; text-align: center; }
+        button.primary-btn { padding: 15px 30px; cursor: pointer; background: #4285f4; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; transition: 0.2s; }
+        button.primary-btn:hover { background: #3367d6; }
+
+        /* Giao diện chọn Slot MỚI CÓ ẢNH THUMBNAIL */
+        .slot-container { display: flex; gap: 20px; margin-top: 30px; }
+        .slot-card { background: #222; border: 2px solid #444; border-radius: 10px; padding: 15px; width: 220px; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center;}
+        .slot-card:hover { border-color: #4285f4; background: #2a2a2a; transform: translateY(-5px); }
+        .slot-title { font-size: 22px; font-weight: bold; margin-bottom: 10px; color: #4285f4; }
         
-        .slot-thumbnail { width: 100%; height: 120px; object-fit: contain; background: #000; border: 1px solid #444; margin-bottom: 10px; }
+        /* CSS cho khung ảnh */
+        .slot-thumbnail { width: 100%; height: 130px; object-fit: cover; border-radius: 5px; margin-bottom: 10px; background: #111; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; font-style: italic; border: 1px solid #333;}
+        img.slot-thumbnail { background: transparent; border: 1px solid #555; }
         
-        #game-wrapper { width:100%; max-width: 800px; }
-        #custom-controls { background: #333; padding: 15px; border-radius: 10px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .slot-info { font-size: 14px; color: #aaa; text-align: center;}
+
+        #game-wrapper { width:80%; max-width: 800px; display:flex; flex-direction: column; align-items: center;}
+        #ingame-controls { background: #222; width: 100%; padding: 10px 0; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: center; align-items: center; gap: 15px; border: 1px solid #444;}
+        #ingame-controls span { font-weight: bold; color: #ffeb3b; }
+        .radio-label { cursor: pointer; font-size: 16px; display: flex; align-items: center; gap: 5px; background: #333; padding: 5px 10px; border-radius: 5px; }
+        .radio-label:hover { background: #444; }
+        input[type="radio"] { cursor: pointer; transform: scale(1.2); }
         
-        button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; }
-        #game { width: 100%; height: 60vh; background: #111; }
+        #game { width: 100%; height: 70vh; background: #111; box-shadow: 0 0 20px rgba(0,0,0,0.8); } 
+
     </style>
 </head>
 <body>
 
-<div id="slot-screen" class="screen active-screen">
-    <h1>Chọn Slot</h1>
-    <div id="slot-list"></div>
+<div id="user-profile">
+    <span id="user-email"></span>
+    <button class="logout-btn" onclick="handleLogout()">Đăng xuất</button>
+</div>
+
+<div id="login-screen" class="screen active-screen">
+    <h1 style="color: #ffeb3b;">Pokemon Cloud Sync</h1>
+    <button id="btn-login" class="primary-btn">Đăng nhập bằng Google</button>
+</div>
+
+<div id="loading-screen" class="screen">
+    <h2 id="loading-text">⏳ Đang kết nối máy chủ...</h2>
+</div>
+
+<div id="slot-screen" class="screen">
+    <h2>Chọn File Save (Save Slot)</h2>
+    <p>Chọn một khe để tải game. Để chuyển Slot khác, vui lòng F5 lại trang.</p>
+    <div class="slot-container" id="slot-list">
+        </div>
 </div>
 
 <div id="game-screen" class="screen">
     <div id="game-wrapper">
-        <div id="custom-controls">
-            <select id="slot-select" onchange="window.currentSaveSlot = this.value">
-                <option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option>
-            </select>
-            <button onclick="saveGameDirectly()" style="background:#e91e63; color:white;">💾 LƯU NGAY</button>
-            <button onclick="openMenu()" style="background:#4caf50; color:white;">⚙️ MỞ MENU</button>
+        <div id="ingame-controls">
+            <span>🎯 Vị trí sẽ lưu (Save) tiếp theo: </span>
+            <label class="radio-label"><input type="radio" name="save_slot" value="1" checked> Slot 1</label>
+            <label class="radio-label"><input type="radio" name="save_slot" value="2"> Slot 2</label>
+            <label class="radio-label"><input type="radio" name="save_slot" value="3"> Slot 3</label>
         </div>
         <div id="game"></div>
     </div>
@@ -44,7 +76,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-    import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
   apiKey: "AIzaSyBOEHzVctDfd73qd5hroJ1IV06vTzGilRs",
@@ -55,53 +87,205 @@
   appId: "1:965191766843:web:a151f03a2b3bd28b055d1e",
   measurementId: "G-E144H92B7S"
 };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth();
+    const provider = new GoogleAuthProvider();
 
-    window.currentSaveSlot = 1;
+    window.currentSaveSlot = 1; 
+    window.cloudStateUrl = null; 
 
-    // Hàm gọi Menu gốc
-    window.openMenu = () => {
-        const iframe = document.querySelector('iframe');
-        if (iframe) iframe.contentWindow.postMessage('openMenu', '*');
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active-screen'));
+        document.getElementById(screenId).classList.add('active-screen');
+    }
+
+    window.handleLogout = () => {
+        signOut(auth).then(() => window.location.reload());
     };
 
-    // Hàm lưu game
-    window.saveGameDirectly = () => {
-        const iframe = document.querySelector('iframe');
-        if (iframe) iframe.contentWindow.postMessage('saveState', '*');
-    };
+    document.getElementById("btn-login").addEventListener("click", () => {
+        signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập: " + err.message));
+    });
 
-    window.uploadStateToCloud = async (stateData, screenshotBase64) => {
-        const slot = window.currentSaveSlot;
-        const binary = btoa(new Uint8Array(stateData).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-        const totalChunks = Math.ceil(binary.length / 800000);
-        
-        await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}`), { 
-            totalChunks, time: Date.now(), screenshot: screenshotBase64 
+    document.querySelectorAll('input[name="save_slot"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            window.currentSaveSlot = parseInt(e.target.value);
+            console.log(`Đã chuyển mục tiêu Save State sang: Slot ${window.currentSaveSlot}`);
         });
-        for (let i = 0; i < totalChunks; i++) {
-            await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}_chunk_${i}`), { data: binary.substring(i * 800000, (i + 1) * 800000) });
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            document.getElementById("user-profile").style.display = "flex";
+            document.getElementById("user-email").innerText = user.email;
+            switchScreen('loading-screen');
+            document.getElementById('loading-text').innerText = "⏳ Đang kiểm tra dữ liệu các Slot...";
+            
+            await loadSlotMenu(user);
+        } else {
+            switchScreen('login-screen');
+            document.getElementById("user-profile").style.display = "none";
         }
-        alert("Lưu lên Cloud thành công!");
+    });
+
+    async function loadSlotMenu(user) {
+        const slotContainer = document.getElementById('slot-list');
+        slotContainer.innerHTML = '';
+
+        for (let i = 1; i <= 3; i++) {
+            let slotInfo = "<i>Chưa có dữ liệu</i>";
+            let imgHtml = `<div class="slot-thumbnail">Trống</div>`;
+            let hasData = false;
+
+            try {
+                const metaSnap = await getDoc(doc(db, "savestates", `${user.uid}_slot_${i}`));
+                if (metaSnap.exists() && metaSnap.data().totalChunks > 0) {
+                    const dateStr = new Date(metaSnap.data().time).toLocaleString('vi-VN');
+                    slotInfo = `Lần lưu cuối:<br><b>${dateStr}</b>`;
+                    hasData = true;
+                    
+                    // Nếu có chứa ảnh Screenshot thì bung ra
+                    if (metaSnap.data().screenshot) {
+                        imgHtml = `<img src="${metaSnap.data().screenshot}" class="slot-thumbnail" alt="Save Thumbnail">`;
+                    } else {
+                        imgHtml = `<div class="slot-thumbnail">Không có ảnh</div>`;
+                    }
+                }
+            } catch (e) {
+                console.error(`Lỗi đọc Slot ${i}:`, e);
+            }
+
+            const card = document.createElement('div');
+            card.className = 'slot-card';
+            card.innerHTML = `
+                <div class="slot-title">Slot ${i}</div>
+                ${imgHtml}
+                <div class="slot-info">${slotInfo}</div>
+            `;
+            
+            card.onclick = () => startGameWithSlot(user, i, hasData);
+            slotContainer.appendChild(card);
+        }
+        
+        switchScreen('slot-screen');
+    }
+
+    async function startGameWithSlot(user, slotIndex, hasData) {
+        switchScreen('loading-screen');
+        
+        window.currentSaveSlot = slotIndex;
+        document.querySelector(`input[name="save_slot"][value="${slotIndex}"]`).checked = true;
+
+        if (hasData) {
+            document.getElementById('loading-text').innerText = `⏳ Đang tải dữ liệu Slot ${slotIndex} từ mây...`;
+            try {
+                const metaSnap = await getDoc(doc(db, "savestates", `${user.uid}_slot_${slotIndex}`));
+                const totalChunks = metaSnap.data().totalChunks;
+                
+                let fullBase64 = '';
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_slot_${slotIndex}_chunk_${i}`));
+                    if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
+                }
+                
+                window.cloudStateUrl = "data:application/octet-stream;base64," + fullBase64;
+                console.log(`✅ Nạp thành công dữ liệu Slot ${slotIndex}`);
+            } catch (e) {
+                console.error("Lỗi kéo dữ liệu:", e);
+                alert("Có lỗi khi tải file, game sẽ chạy từ đầu.");
+            }
+        }
+
+        switchScreen('game-screen');
+        startEmulator();
+    }
+
+    window.uploadStateToCloud = async (stateData) => {
+        if (!auth.currentUser) return;
+        const slot = window.currentSaveSlot;
+        
+        try {
+            const bytes = new Uint8Array(stateData);
+            if (bytes.byteLength < 100) {
+                console.error("❌ Dữ liệu quá nhỏ, hủy upload.");
+                return;
+            }
+            
+            // CHỤP ẢNH MÀN HÌNH GAME
+            let screenshotBase64 = "";
+            const gameCanvas = document.querySelector('#game canvas');
+            if (gameCanvas) {
+                // Ép chất lượng ảnh 0.5 (50%) để file siêu nhẹ, không tốn dung lượng Firebase
+                screenshotBase64 = gameCanvas.toDataURL('image/jpeg', 0.5); 
+            }
+            
+            console.log(`⚡ Đang băm nhỏ, chụp ảnh và đẩy Save lên Slot ${slot}...`);
+            
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            const base64String = btoa(binary);
+
+            const chunkSize = 800000; 
+            const totalChunks = Math.ceil(base64String.length / chunkSize);
+
+            // Ghi Metadata kèm theo bức ảnh Screenshot
+            await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}`), { 
+                totalChunks: totalChunks, 
+                time: Date.now(),
+                screenshot: screenshotBase64 // Lưu thẳng bức ảnh vào đây
+            });
+
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkData = base64String.substring(i * chunkSize, (i + 1) * chunkSize);
+                await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}_chunk_${i}`), { data: chunkData });
+            }
+            console.log(`🎉 FIREBASE ĐÃ LƯU STATE (KÈM ẢNH) VÀO SLOT ${slot} THÀNH CÔNG!`);
+        } catch (e) {
+            console.error("❌ Lỗi lưu Firebase:", e);
+        }
     };
 </script>
 
 <script>
-    function startEmulator(url) {
-        window.EJS_player = '#game';
-        window.EJS_core = 'gba';
-        window.EJS_gameUrl = 'https://raw.githubusercontent.com/tung55/pkmsource/main/pkmfrsq.gba';
-        window.EJS_onSaveState = function(data) {
-            let screenBase64 = data.screenshot ? "data:image/png;base64," + btoa(String.fromCharCode(...new Uint8Array(data.screenshot))) : "";
-            window.uploadStateToCloud(data.state || data.data, screenBase64);
-        };
-        const script = document.createElement('script');
-        script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
-        document.body.appendChild(script);
+function startEmulator() {
+    window.EJS_player = '#game';
+    window.EJS_core = 'gba';
+    window.EJS_gameUrl = 'https://raw.githubusercontent.com/tung55/pkmsource/main/pkmfrsq.gba';
+    window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_startOnLoaded = true;
+
+    if (window.cloudStateUrl) {
+        window.EJS_loadStateURL = window.cloudStateUrl;
     }
-    // Gọi startEmulator() sau khi đã chọn Slot...
+
+    window.EJS_onSaveState = function(data) {
+        console.log(`📸 Bắt tín hiệu Save! Chuẩn bị ném lên Slot ${window.currentSaveSlot}`);
+        let rawData = null;
+        if (data instanceof Uint8Array) {
+            rawData = data;
+        } else if (data && data.state instanceof Uint8Array) {
+            rawData = data.state;
+        } else if (data && data.data instanceof Uint8Array) {
+            rawData = data.data;
+        } else if (data) {
+            rawData = data.state || data.data || data; 
+        }
+
+        if (rawData && rawData.byteLength > 100 && window.uploadStateToCloud) {
+            window.uploadStateToCloud(rawData);
+        }
+    };
+
+    const script = document.createElement('script');
+    script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
+    document.body.appendChild(script);
+}
 </script>
+    <script>
+        
 </body>
 </html>
