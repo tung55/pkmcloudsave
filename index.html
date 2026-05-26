@@ -4,6 +4,26 @@
     <meta charset="UTF-8">
     <title>Pokemon Cloud - Ultimate Thumbnail Edition</title>
     <style>
+        /* Ép Iframe của giả lập phải hiển thị menu */
+iframe {
+    width: 100% !important;
+    height: 100% !important;
+    /* Cấp quyền tương tác cho các phần tử bên trong Iframe */
+    pointer-events: auto !important;
+}
+
+/* Thủ thuật: Tạo một lớp đè lên để kích hoạt menu nếu nó ẩn */
+#game {
+    position: relative;
+}
+
+/* Đảm bảo các container của giả lập luôn hiển thị */
+.emulator-menu, #menu, .menu-container, [class*="emulator-controls"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+}
         body { margin:0; background:#0f0f0f; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
         
         #user-profile { position: fixed; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px 15px; border-radius: 8px; display: none; align-items: center; z-index: 100; backdrop-filter: blur(5px); }
