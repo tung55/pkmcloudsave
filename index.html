@@ -286,5 +286,19 @@ function startEmulator() {
 }
 </script>
     <script>
+        <script>
+// Đoạn script này "đánh lừa" giả lập rằng luôn có chuột di chuyển để nó giữ menu
+setInterval(() => {
+    const iframe = document.querySelector('iframe');
+    if (iframe && iframe.contentWindow) {
+        // Gửi một sự kiện giả lập chuột để giữ menu luôn hiện
+        iframe.contentWindow.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+    }
+}, 3000); // Mỗi 3 giây nó lại "ping" một cái để menu không ngủ quên
+</script>
 </body>
 </html>
