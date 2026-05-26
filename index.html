@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pokemon Cloud Sync - Data URI Edition</title>
+    <title>Pokemon Cloud Sync - The Final Cut</title>
     <style>
         body { margin:0; background:black; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: sans-serif; height: 100vh; }
         #user-profile { position: fixed; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; display: none; align-items: center; z-index: 100; }
@@ -74,17 +74,23 @@
                     const metaSnap = await getDoc(doc(db, "savestates", user.uid));
                     if (metaSnap.exists()) {
                         const totalChunks = metaSnap.data().totalChunks;
-                        let fullBase64 = '';
-                        console.log(`☁️ Đang kéo ${totalChunks} mảnh Save State từ Firebase...`);
                         
-                        for (let i = 0; i < totalChunks; i++) {
-                            const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_chunk_${i}`));
-                            if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
+                        // Lọc loại bỏ lỗi 0 mảnh
+                        if (totalChunks > 0) {
+                            let fullBase64 = '';
+                            console.log(`☁️ Đang kéo ${totalChunks} mảnh Save State từ Firebase...`);
+                            
+                            for (let i = 0; i < totalChunks; i++) {
+                                const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_chunk_${i}`));
+                                if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
+                            }
+                            
+                            // Gắn dữ liệu thẳng vào Data URI để vượt rào cản Web Worker
+                            window.cloudStateUrl = "data:application/octet-stream;base64," + fullBase64;
+                            console.log("✅ Đã ráp xong file Save State (chuẩn Data URI) sẵn sàng nạp!");
+                        } else {
+                            console.log("☁️ Dữ liệu trên mây bị rỗng (0 mảnh). Đã tự động bỏ qua để tránh lỗi game.");
                         }
-                        
-                        // 💥 CẬP NHẬT MỚI: Ép trực tiếp thành Data URI để xuyên thủng rào cản Web Worker
-                        window.cloudStateUrl = "data:application/octet-stream;base64," + fullBase64;
-                        console.log("✅ Đã ráp xong file Save State (chuẩn Data URI) sẵn sàng nạp!");
                     }
                 } catch (e) { 
                     console.error("Lỗi đồng bộ mây:", e); 
@@ -103,8 +109,9 @@
         if (!auth.currentUser) return;
         
         try {
-            // 💥 CẬP NHẬT MỚI: Trích xuất chính xác Uint8Array, tránh trường hợp lưu nhầm mảng rỗng
             const bytes = new Uint8Array(stateData);
+            
+            // Chặn đứng các file rác/rỗng để không tạo ra dữ liệu 0 mảnh
             if (bytes.byteLength < 100) {
                 console.error("❌ Lỗi: Dữ liệu quá nhỏ hoặc rỗng. Giả lập cung cấp file lỗi.");
                 return;
@@ -121,11 +128,13 @@
             const chunkSize = 800000; 
             const totalChunks = Math.ceil(base64String.length / chunkSize);
 
+            // Ghi nhận tổng số mảnh
             await setDoc(doc(db, "savestates", auth.currentUser.uid), { 
                 totalChunks: totalChunks, 
                 time: Date.now() 
             });
 
+            // Gửi từng mảnh lên Firebase
             for (let i = 0; i < totalChunks; i++) {
                 const chunkData = base64String.substring(i * chunkSize, (i + 1) * chunkSize);
                 await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_chunk_${i}`), { data: chunkData });
@@ -146,20 +155,31 @@ function startEmulator() {
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
 
-    // Nếu có Cloud State, ép giả lập đọc từ Data URI
+    // Nạp link Data URI vào cho giả lập nếu trên mây có dữ liệu
     if (window.cloudStateUrl) {
         window.EJS_stateUrl = window.cloudStateUrl;
     }
 
-    // 💥 CẬP NHẬT MỚI: Đảm bảo nhặt đúng cục dữ liệu dù giả lập trả về định dạng nào
+    // Bắt sự kiện tạo file và rà soát kỹ định dạng mảng
     window.EJS_onSaveState = function(data) {
-        console.log("📸 Bắt được tín hiệu Save State!");
-        let rawData = data;
-        if (data && data.state) rawData = data.state;
-        else if (data && data.data) rawData = data.data;
+        console.log("📸 Bắt được tín hiệu Save State! Dữ liệu thô là:", data);
+        
+        let rawData = null;
+        if (data instanceof Uint8Array) {
+            rawData = data;
+        } else if (data && data.state instanceof Uint8Array) {
+            rawData = data.state;
+        } else if (data && data.data instanceof Uint8Array) {
+            rawData = data.data;
+        } else if (data) {
+            rawData = data.state || data.data || data; 
+        }
 
-        if (rawData && window.uploadStateToCloud) {
+        // Chỉ cho phép upload nếu dữ liệu mảng hợp lệ
+        if (rawData && rawData.byteLength > 100 && window.uploadStateToCloud) {
             window.uploadStateToCloud(rawData);
+        } else {
+            console.error("❌ Báo động: Giả lập trả về dữ liệu rỗng hoặc không hợp lệ, không upload lên Cloud!");
         }
     };
 
