@@ -245,43 +245,46 @@ function startEmulator() {
     }
 
     // THUẬT TOÁN BẮT ẢNH MỚI 100%
-    window.EJS_onSaveState = function(data) {
-        console.log(`📸 Bắt tín hiệu Save từ giả lập!`, data);
-        
-        let rawData = null;
-        let screenRaw = null;
-        let screenBase64 = "";
+   window.EJS_onSaveState = function(data) {
+    console.log("📸 Bắt tín hiệu Save từ giả lập:", data);
+    
+    let rawData = null;
+    let screenRaw = null;
+    let screenBase64 = "";
 
-        // Tách file State và file Ảnh từ cục data do EmulatorJS nhả ra
-        if (Array.isArray(data)) {
-            screenRaw = data[0];
-            rawData = data[1];
-        } else if (data && typeof data === 'object') {
-            screenRaw = data.screenshot;
-            rawData = data.state || data.data || data;
-        } else {
-            rawData = data;
-        }
+    // 1. Phân loại dữ liệu (Vì giả lập có thể trả về Mảng hoặc Object tùy thiết bị)
+    if (Array.isArray(data)) {
+        screenRaw = data[0]; // Ảnh luôn nằm ở vị trí đầu
+        rawData = data[1];   // File save nằm ở vị trí sau
+    } else if (data && typeof data === 'object') {
+        screenRaw = data.screenshot;
+        rawData = data.state || data.data || data;
+    } else {
+        rawData = data;
+    }
 
-        // Chuyển đổi dữ liệu ảnh thành Base64 (Để hiển thị được trên web)
-        if (screenRaw) {
-            try {
-                let screenBytes = new Uint8Array(screenRaw);
-                let binary = '';
-                for (let i = 0; i < screenBytes.byteLength; i++) {
-                    binary += String.fromCharCode(screenBytes[i]);
-                }
-                // Giả lập mặc định trả về ảnh PNG
-                screenBase64 = "data:image/png;base64," + btoa(binary);
-            } catch (err) {
-                console.error("Lỗi biên dịch ảnh:", err);
+    // 2. Chuyển đổi ảnh sang Base64 một cách AN TOÀN (dùng vòng lặp for thay vì ép kiểu 1 dòng)
+    if (screenRaw) {
+        try {
+            let screenBytes = new Uint8Array(screenRaw);
+            let binary = '';
+            for (let i = 0; i < screenBytes.byteLength; i++) {
+                binary += String.fromCharCode(screenBytes[i]);
             }
+            screenBase64 = "data:image/png;base64," + btoa(binary);
+            console.log("✅ Đã xử lý xong ảnh Thumbnail!");
+        } catch (err) {
+            console.error("❌ Lỗi biên dịch ảnh:", err);
         }
+    } else {
+        console.warn("⚠️ Giả lập không nhả ra bức ảnh nào!");
+    }
 
-        if (rawData && rawData.byteLength > 100 && window.uploadStateToCloud) {
-            window.uploadStateToCloud(rawData, screenBase64);
-        }
-    };
+    // 3. Đẩy lên Cloud
+    if (rawData && window.uploadStateToCloud) {
+        window.uploadStateToCloud(rawData, screenBase64);
+    }
+};
 
     const script = document.createElement('script');
     script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
