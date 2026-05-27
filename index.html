@@ -85,14 +85,8 @@
     import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyBOEHzVctDfd73qd5hroJ1IV06vTzGilRs",
-  authDomain: "pokemoncloud.firebaseapp.com",
-  projectId: "pokemoncloud",
-  storageBucket: "pokemoncloud.firebasestorage.app",
-  messagingSenderId: "965191766843",
-  appId: "1:965191766843:web:a151f03a2b3bd28b055d1e",
-  measurementId: "G-E144H92B7S"
-};
+        /* 💥 DÁN CẤU HÌNH FIREBASE CỦA BẠN VÀO ĐÂY */
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -101,7 +95,6 @@
 
     window.currentSaveSlot = 1; 
     window.cloudStateUrl = null; 
-    window.tempScreenshotBase64 = ""; // Biến lưu tạm bức ảnh trộm được
 
     function switchScreen(screenId) {
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active-screen'));
@@ -183,32 +176,50 @@
         startEmulator();
     }
 
-    // Lắng nghe bức ảnh được "tuồn" từ Iframe ra ngoài
-    window.addEventListener("message", (event) => {
-        if (event.data && event.data.type === "screenshot" && event.data.base64) {
-            window.tempScreenshotBase64 = event.data.base64;
-            console.log("📸 Đã lấy thành công ảnh thủ công từ Canvas!");
+    /* --- PHẦN MỚI: CHỌC THẲNG VÀO LÕI GIẢ LẬP KHÔNG QUA IFRAME --- */
+    window.saveGameDirectly = async () => {
+        // Kiểm tra xem lõi giả lập đã nạp vào website chưa
+        if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
+            return alert("Giả lập chưa tải xong hoặc chưa vào game. Vui lòng đợi!");
         }
-    });
+        
+        try {
+            console.log("Tiến hành lấy Save File trực tiếp...");
+            // 1. Ép giả lập nhả File Save trực tiếp (không cần nó tự bật menu)
+            let stateData = window.EJS_emulator.gameManager.getState();
+            if (stateData instanceof Promise) {
+                stateData = await stateData;
+            }
+            
+            // 2. Tự động tìm khung vẽ đồ họa (canvas) và chộp ảnh
+            let screenshotBase64 = "";
+            const cv = document.querySelector("canvas");
+            if (cv) {
+                screenshotBase64 = cv.toDataURL("image/jpeg", 0.5); // Nén 50% cho mượt
+                console.log("📸 Đã chộp ảnh màn hình từ thẻ Canvas!");
+            }
 
-    window.saveGameDirectly = () => {
-        const iframe = document.querySelector('iframe');
-        if (!iframe) return alert("Giả lập chưa tải xong!");
-        
-        window.tempScreenshotBase64 = ""; // Xóa ảnh cũ
-        
-        // 1. Gửi lệnh yêu cầu iframe tự chụp ảnh
-        try { iframe.contentWindow.postMessage({ type: "take_screenshot" }, "*"); } catch(e){}
-        
-        // 2. Chờ 300 mili-giây để ảnh kịp xử lý, sau đó mới gửi lệnh Save gốc
-        setTimeout(() => {
-            iframe.contentWindow.postMessage('saveState', '*');
-        }, 300);
+            // 3. Đẩy lên Firebase
+            await window.uploadStateToCloud(stateData, screenshotBase64);
+            
+            // Báo xanh trên màn hình game
+            if (window.EJS_emulator.displayMessage) {
+                window.EJS_emulator.displayMessage("Lưu game bằng tay thành công!");
+            }
+        } catch (err) {
+            console.error("Lỗi Save thủ công:", err);
+            alert("Đã xảy ra lỗi khi lưu game thủ công!");
+        }
     };
 
     window.openMenu = () => {
-        const iframe = document.querySelector('iframe');
-        if (iframe) iframe.contentWindow.postMessage('openMenu', '*');
+        // Cố gắng bấm hộ nút Menu nội bộ
+        const menuIcon = document.querySelector('#game .ejs-menu-btn') || document.querySelector('.ejs-icon-menu');
+        if (menuIcon) {
+            menuIcon.click();
+        } else {
+            alert("Tính năng mở nhanh không khả dụng. Bạn hãy chạm vào màn hình và bấm nút ☰ của giả lập nhé!");
+        }
     };
 
     window.uploadStateToCloud = async (stateData, screenshotBase64) => {
@@ -225,13 +236,10 @@
             const chunkSize = 800000; 
             const totalChunks = Math.ceil(base64String.length / chunkSize);
 
-            // Tối quan trọng: Gộp ảnh trích xuất thủ công vào nếu ảnh mặc định bị rỗng
-            const finalImage = screenshotBase64 || window.tempScreenshotBase64 || "";
-
             await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}`), { 
                 totalChunks: totalChunks, 
                 time: Date.now(),
-                screenshot: finalImage
+                screenshot: screenshotBase64 || ""
             });
 
             for (let i = 0; i < totalChunks; i++) {
@@ -257,17 +265,16 @@ function startEmulator() {
         window.EJS_loadStateURL = window.cloudStateUrl;
     }
 
+    // Backup: Vẫn bắt sóng nếu người chơi vào Menu gốc của giả lập để bấm Lưu
     window.EJS_onSaveState = function(data) {
         let rawData = null;
         let screenRaw = null;
         let screenBase64 = "";
 
         if (Array.isArray(data)) {
-            screenRaw = data[0]; 
-            rawData = data[1];   
+            screenRaw = data[0]; rawData = data[1];   
         } else if (data && typeof data === 'object') {
-            screenRaw = data.screenshot;
-            rawData = data.state || data.data || data;
+            screenRaw = data.screenshot; rawData = data.state || data.data || data;
         } else {
             rawData = data;
         }
@@ -278,7 +285,11 @@ function startEmulator() {
                 let binary = '';
                 for (let i = 0; i < screenBytes.byteLength; i++) { binary += String.fromCharCode(screenBytes[i]); }
                 screenBase64 = "data:image/png;base64," + btoa(binary);
-            } catch (err) { console.error(err); }
+            } catch (err) {}
+        } else {
+            // Khi giả lập "lười" không chịu chụp ảnh, ta vẫn chộp được
+            const cv = document.querySelector("canvas");
+            if(cv) screenBase64 = cv.toDataURL("image/jpeg", 0.5);
         }
 
         if (rawData && window.uploadStateToCloud) {
@@ -288,30 +299,6 @@ function startEmulator() {
 
     const script = document.createElement('script');
     script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
-    
-    // Tiêm mã theo dõi vào Iframe để ép chụp ảnh
-    script.onload = function() {
-        setTimeout(() => {
-            const iframe = document.querySelector('iframe');
-            if(iframe) {
-                const injectCode = `
-                    window.addEventListener("message", (e) => {
-                        if(e.data && e.data.type === "take_screenshot") {
-                            try {
-                                const cv = document.querySelector("canvas");
-                                if(cv) {
-                                    const b64 = cv.toDataURL("image/jpeg", 0.4); // 0.4 để giảm dung lượng ảnh
-                                    window.parent.postMessage({type: "screenshot", base64: b64}, "*");
-                                }
-                            } catch(err) {}
-                        }
-                    });
-                `;
-                try { iframe.contentWindow.eval(injectCode); } catch(e) {}
-            }
-        }, 2000);
-    };
-
     document.body.appendChild(script);
 }
 </script>
