@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pokemon Cloud - The Ultimate Edition</title>
+    
+    <script>
+        const originalGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function(type, attributes) {
+            if (type === 'webgl' || type === 'webgl2') {
+                attributes = attributes || {};
+                attributes.preserveDrawingBuffer = true; // Bắt buộc giữ lại khung hình
+            }
+            return originalGetContext.call(this, type, attributes);
+        };
+    </script>
+
     <style>
         body { margin:0; background:#0f0f0f; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
         
@@ -84,15 +96,9 @@
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-   const firebaseConfig = {
-  apiKey: "AIzaSyBOEHzVctDfd73qd5hroJ1IV06vTzGilRs",
-  authDomain: "pokemoncloud.firebaseapp.com",
-  projectId: "pokemoncloud",
-  storageBucket: "pokemoncloud.firebasestorage.app",
-  messagingSenderId: "965191766843",
-  appId: "1:965191766843:web:a151f03a2b3bd28b055d1e",
-  measurementId: "G-E144H92B7S"
-};
+    const firebaseConfig = {
+        /* 💥 DÁN CẤU HÌNH FIREBASE CỦA BẠN VÀO ĐÂY */
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -182,33 +188,28 @@
         startEmulator();
     }
 
-    /* --- PHẦN MỚI: CHỌC THẲNG VÀO LÕI GIẢ LẬP KHÔNG QUA IFRAME --- */
     window.saveGameDirectly = async () => {
-        // Kiểm tra xem lõi giả lập đã nạp vào website chưa
         if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
             return alert("Giả lập chưa tải xong hoặc chưa vào game. Vui lòng đợi!");
         }
         
         try {
             console.log("Tiến hành lấy Save File trực tiếp...");
-            // 1. Ép giả lập nhả File Save trực tiếp (không cần nó tự bật menu)
             let stateData = window.EJS_emulator.gameManager.getState();
             if (stateData instanceof Promise) {
                 stateData = await stateData;
             }
             
-            // 2. Tự động tìm khung vẽ đồ họa (canvas) và chộp ảnh
+            // Nhờ có bùa chú trên thẻ <head>, giờ đây ảnh sẽ không bao giờ bị đen nữa!
             let screenshotBase64 = "";
             const cv = document.querySelector("canvas");
             if (cv) {
-                screenshotBase64 = cv.toDataURL("image/jpeg", 0.5); // Nén 50% cho mượt
-                console.log("📸 Đã chộp ảnh màn hình từ thẻ Canvas!");
+                screenshotBase64 = cv.toDataURL("image/jpeg", 0.5); 
+                console.log("📸 Đã chộp ảnh màn hình thành công!");
             }
 
-            // 3. Đẩy lên Firebase
             await window.uploadStateToCloud(stateData, screenshotBase64);
             
-            // Báo xanh trên màn hình game
             if (window.EJS_emulator.displayMessage) {
                 window.EJS_emulator.displayMessage("Lưu game bằng tay thành công!");
             }
@@ -219,12 +220,11 @@
     };
 
     window.openMenu = () => {
-        // Cố gắng bấm hộ nút Menu nội bộ
         const menuIcon = document.querySelector('#game .ejs-menu-btn') || document.querySelector('.ejs-icon-menu');
         if (menuIcon) {
             menuIcon.click();
         } else {
-            alert("Tính năng mở nhanh không khả dụng. Bạn hãy chạm vào màn hình và bấm nút ☰ của giả lập nhé!");
+            alert("Bạn hãy chạm vào màn hình và bấm nút ☰ của giả lập nhé!");
         }
     };
 
@@ -271,7 +271,7 @@ function startEmulator() {
         window.EJS_loadStateURL = window.cloudStateUrl;
     }
 
-    // Backup: Vẫn bắt sóng nếu người chơi vào Menu gốc của giả lập để bấm Lưu
+    // Phòng hờ người dùng vẫn quen tay vào menu gốc của Emulator để Save
     window.EJS_onSaveState = function(data) {
         let rawData = null;
         let screenRaw = null;
@@ -293,7 +293,6 @@ function startEmulator() {
                 screenBase64 = "data:image/png;base64," + btoa(binary);
             } catch (err) {}
         } else {
-            // Khi giả lập "lười" không chịu chụp ảnh, ta vẫn chộp được
             const cv = document.querySelector("canvas");
             if(cv) screenBase64 = cv.toDataURL("image/jpeg", 0.5);
         }
