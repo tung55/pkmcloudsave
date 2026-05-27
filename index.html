@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pokemon Cloud - The Masterpiece Edition</title>
+    <title>Pokemon Cloud - The Ultimate Edition</title>
     <style>
         body { margin:0; background:#0f0f0f; display:flex; flex-direction:column; align-items:center; justify-content:center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
         
         #user-profile { position: fixed; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px 15px; border-radius: 8px; display: none; align-items: center; z-index: 100; backdrop-filter: blur(5px); }
         .logout-btn { background:#ff4444; margin-left:15px; padding:6px 12px; font-size:14px; border:none; border-radius:4px; color:white; cursor:pointer; font-weight: bold; }
         
-        .screen { display: none; text-align: center; flex-direction: column; align-items: center; width: 100%; }
+        .screen { display: none; text-align: center; flex-direction: column; align-items: center; width: 100%; padding: 20px; box-sizing: border-box;}
         .active-screen { display: flex; }
         
         button.primary-btn { padding: 15px 30px; cursor: pointer; background: #4285f4; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; transition: 0.2s; }
@@ -22,21 +22,17 @@
         .slot-title { font-size: 22px; font-weight: bold; margin-bottom: 10px; color: #4285f4; }
         
         .slot-thumbnail { width: 100%; height: 140px; object-fit: contain; border-radius: 5px; margin-bottom: 10px; background: #000; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; font-style: italic; border: 1px solid #444;}
-        img.slot-thumbnail { background: #000; padding: 2px; }
         
         .slot-info { font-size: 14px; color: #aaa; text-align: center;}
 
         #game-wrapper { width:100%; max-width: 800px; display:flex; flex-direction: column; align-items: center; padding: 10px; box-sizing: border-box;}
         
-        /* Bộ điều khiển tự chế */
         #custom-controls { background: #222; width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 15px; border: 1px solid #444; box-sizing: border-box;}
-        #custom-controls span { font-weight: bold; color: #ffeb3b; }
         .control-btn { padding: 10px 20px; background: #e91e63; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 15px; box-shadow: 0 3px #c2185b;}
         .menu-btn { padding: 10px 20px; background: #4caf50; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 15px; box-shadow: 0 3px #388e3c;}
         
-        #game { width: 100%; height: 70vh; background: #111; box-shadow: 0 0 20px rgba(0,0,0,0.8); } 
+        #game { width: 100%; height: 60vh; background: #111; box-shadow: 0 0 20px rgba(0,0,0,0.8); border-radius: 8px; overflow: hidden;} 
         
-        /* Chỉnh lại độ cao cho điện thoại để hiện rõ các nút */
         @media (max-width: 768px) {
             #game { height: 50vh !important; } 
             .slot-card { width: 85%; }
@@ -62,16 +58,15 @@
 <div id="slot-screen" class="screen">
     <h2>Chọn File Save (Save Slot)</h2>
     <p>Chọn một khe để tải game. Để chuyển Slot khác, vui lòng F5 lại trang.</p>
-    <div class="slot-container" id="slot-list">
-        </div>
+    <div class="slot-container" id="slot-list"></div>
 </div>
 
 <div id="game-screen" class="screen">
     <div id="game-wrapper">
         <div id="custom-controls">
             <div>
-                <span style="font-size: 14px;">Mục tiêu lưu: </span>
-                <select id="slot-select" onchange="window.currentSaveSlot = parseInt(this.value)" style="padding: 5px; border-radius: 5px; background: #333; color: white; border: 1px solid #666;">
+                <span style="font-size: 13px; color: #aaa; display: block; margin-bottom: 2px;">Mục tiêu lưu:</span>
+                <select id="slot-select" onchange="window.currentSaveSlot = parseInt(this.value)" style="padding: 6px; border-radius: 5px; background: #333; color: white; border: 1px solid #666;">
                     <option value="1">Slot 1</option>
                     <option value="2">Slot 2</option>
                     <option value="3">Slot 3</option>
@@ -90,14 +85,9 @@
     import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyBOEHzVctDfd73qd5hroJ1IV06vTzGilRs",
-  authDomain: "pokemoncloud.firebaseapp.com",
-  projectId: "pokemoncloud",
-  storageBucket: "pokemoncloud.firebasestorage.app",
-  messagingSenderId: "965191766843",
-  appId: "1:965191766843:web:a151f03a2b3bd28b055d1e",
-  measurementId: "G-E144H92B7S"
-};
+        /* 💥 DÁN CẤU HÌNH FIREBASE CỦA BẠN VÀO ĐÂY */
+    };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth();
@@ -105,6 +95,7 @@
 
     window.currentSaveSlot = 1; 
     window.cloudStateUrl = null; 
+    window.tempScreenshotBase64 = ""; // Biến lưu tạm bức ảnh trộm được
 
     function switchScreen(screenId) {
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active-screen'));
@@ -125,7 +116,6 @@
             document.getElementById("user-email").innerText = user.email;
             switchScreen('loading-screen');
             document.getElementById('loading-text').innerText = "⏳ Đang kiểm tra dữ liệu các Slot...";
-            
             await loadSlotMenu(user);
         } else {
             switchScreen('login-screen');
@@ -151,67 +141,63 @@
                     
                     if (metaSnap.data().screenshot) {
                         imgHtml = `<img src="${metaSnap.data().screenshot}" class="slot-thumbnail" alt="Save Thumbnail">`;
-                    } else {
-                        imgHtml = `<div class="slot-thumbnail">Không có ảnh (Thiết bị yếu)</div>`;
                     }
                 }
-            } catch (e) {
-                console.error(`Lỗi đọc Slot ${i}:`, e);
-            }
+            } catch (e) { console.error(`Lỗi đọc Slot ${i}:`, e); }
 
             const card = document.createElement('div');
             card.className = 'slot-card';
-            card.innerHTML = `
-                <div class="slot-title">Slot ${i}</div>
-                ${imgHtml}
-                <div class="slot-info">${slotInfo}</div>
-            `;
-            
+            card.innerHTML = `<div class="slot-title">Slot ${i}</div>${imgHtml}<div class="slot-info">${slotInfo}</div>`;
             card.onclick = () => startGameWithSlot(user, i, hasData);
             slotContainer.appendChild(card);
         }
-        
         switchScreen('slot-screen');
     }
 
     async function startGameWithSlot(user, slotIndex, hasData) {
         switchScreen('loading-screen');
-        
         window.currentSaveSlot = slotIndex;
         document.getElementById("slot-select").value = slotIndex;
 
         if (hasData) {
-            document.getElementById('loading-text').innerText = `⏳ Đang tải dữ liệu Slot ${slotIndex} từ mây...`;
+            document.getElementById('loading-text').innerText = `⏳ Đang tải dữ liệu Slot ${slotIndex}...`;
             try {
                 const metaSnap = await getDoc(doc(db, "savestates", `${user.uid}_slot_${slotIndex}`));
-                const totalChunks = metaSnap.data().totalChunks;
-                
                 let fullBase64 = '';
-                for (let i = 0; i < totalChunks; i++) {
+                for (let i = 0; i < metaSnap.data().totalChunks; i++) {
                     const chunkSnap = await getDoc(doc(db, "savestates", `${user.uid}_slot_${slotIndex}_chunk_${i}`));
                     if (chunkSnap.exists()) fullBase64 += chunkSnap.data().data;
                 }
-                
                 window.cloudStateUrl = "data:application/octet-stream;base64," + fullBase64;
-                console.log(`✅ Nạp thành công dữ liệu Slot ${slotIndex}`);
             } catch (e) {
-                console.error("Lỗi kéo dữ liệu:", e);
                 alert("Có lỗi khi tải file, game sẽ chạy từ đầu.");
             }
         }
-
         switchScreen('game-screen');
         startEmulator();
     }
 
-    // Các hàm gọi lệnh vào thẳng Iframe
+    // Lắng nghe bức ảnh được "tuồn" từ Iframe ra ngoài
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "screenshot" && event.data.base64) {
+            window.tempScreenshotBase64 = event.data.base64;
+            console.log("📸 Đã lấy thành công ảnh thủ công từ Canvas!");
+        }
+    });
+
     window.saveGameDirectly = () => {
         const iframe = document.querySelector('iframe');
-        if (iframe) {
+        if (!iframe) return alert("Giả lập chưa tải xong!");
+        
+        window.tempScreenshotBase64 = ""; // Xóa ảnh cũ
+        
+        // 1. Gửi lệnh yêu cầu iframe tự chụp ảnh
+        try { iframe.contentWindow.postMessage({ type: "take_screenshot" }, "*"); } catch(e){}
+        
+        // 2. Chờ 300 mili-giây để ảnh kịp xử lý, sau đó mới gửi lệnh Save gốc
+        setTimeout(() => {
             iframe.contentWindow.postMessage('saveState', '*');
-        } else {
-            alert("Giả lập chưa tải xong!");
-        }
+        }, 300);
     };
 
     window.openMenu = () => {
@@ -227,29 +213,26 @@
             const bytes = new Uint8Array(stateData);
             if (bytes.byteLength < 100) return;
             
-            console.log(`⚡ Đang đẩy Save lên Slot ${slot}...`);
-            
             let binary = '';
-            for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
+            for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
             const base64String = btoa(binary);
-
             const chunkSize = 800000; 
             const totalChunks = Math.ceil(base64String.length / chunkSize);
+
+            // Tối quan trọng: Gộp ảnh trích xuất thủ công vào nếu ảnh mặc định bị rỗng
+            const finalImage = screenshotBase64 || window.tempScreenshotBase64 || "";
 
             await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}`), { 
                 totalChunks: totalChunks, 
                 time: Date.now(),
-                screenshot: screenshotBase64 || "" // Lưu ảnh nếu có, nếu rỗng thì Firebase ghi nhận là ""
+                screenshot: finalImage
             });
 
             for (let i = 0; i < totalChunks; i++) {
                 const chunkData = base64String.substring(i * chunkSize, (i + 1) * chunkSize);
                 await setDoc(doc(db, "savestates", `${auth.currentUser.uid}_slot_${slot}_chunk_${i}`), { data: chunkData });
             }
-            console.log(`🎉 FIREBASE ĐÃ LƯU VÀO SLOT ${slot} THÀNH CÔNG!`);
-            alert(`Đã lưu game vào Slot ${slot} thành công!`);
+            alert(`🎉 Đã lưu thành công vào Slot ${slot}!`);
         } catch (e) {
             console.error("❌ Lỗi lưu Firebase:", e);
         }
@@ -268,15 +251,11 @@ function startEmulator() {
         window.EJS_loadStateURL = window.cloudStateUrl;
     }
 
-    // THUẬT TOÁN BẮT DỮ LIỆU CHUẨN AN TOÀN NHẤT
     window.EJS_onSaveState = function(data) {
-        console.log("📸 Bắt tín hiệu Save từ giả lập:", data);
-        
         let rawData = null;
         let screenRaw = null;
         let screenBase64 = "";
 
-        // 1. Dò tìm cấu trúc mà EmulatorJS ném ra
         if (Array.isArray(data)) {
             screenRaw = data[0]; 
             rawData = data[1];   
@@ -287,23 +266,15 @@ function startEmulator() {
             rawData = data;
         }
 
-        // 2. Nếu có ảnh thì băm ảnh ra (Trên điện thoại đa phần sẽ không có nhánh này)
         if (screenRaw) {
             try {
                 let screenBytes = new Uint8Array(screenRaw);
                 let binary = '';
-                for (let i = 0; i < screenBytes.byteLength; i++) {
-                    binary += String.fromCharCode(screenBytes[i]);
-                }
+                for (let i = 0; i < screenBytes.byteLength; i++) { binary += String.fromCharCode(screenBytes[i]); }
                 screenBase64 = "data:image/png;base64," + btoa(binary);
-            } catch (err) {
-                console.error("Lỗi biên dịch ảnh:", err);
-            }
-        } else {
-            console.warn("⚠️ Giả lập chạy ở chế độ tiết kiệm, KHÔNG tự chụp ảnh. Chỉ lưu File Save.");
+            } catch (err) { console.error(err); }
         }
 
-        // 3. Tiến hành đẩy lên mạng
         if (rawData && window.uploadStateToCloud) {
             window.uploadStateToCloud(rawData, screenBase64);
         }
@@ -311,6 +282,30 @@ function startEmulator() {
 
     const script = document.createElement('script');
     script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
+    
+    // Tiêm mã theo dõi vào Iframe để ép chụp ảnh
+    script.onload = function() {
+        setTimeout(() => {
+            const iframe = document.querySelector('iframe');
+            if(iframe) {
+                const injectCode = `
+                    window.addEventListener("message", (e) => {
+                        if(e.data && e.data.type === "take_screenshot") {
+                            try {
+                                const cv = document.querySelector("canvas");
+                                if(cv) {
+                                    const b64 = cv.toDataURL("image/jpeg", 0.4); // 0.4 để giảm dung lượng ảnh
+                                    window.parent.postMessage({type: "screenshot", base64: b64}, "*");
+                                }
+                            } catch(err) {}
+                        }
+                    });
+                `;
+                try { iframe.contentWindow.eval(injectCode); } catch(e) {}
+            }
+        }, 2000);
+    };
+
     document.body.appendChild(script);
 }
 </script>
